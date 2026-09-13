@@ -1,3 +1,4 @@
+
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
@@ -135,8 +136,10 @@ function CajaView({ profile, activeBranchId, branchName }) {
 
   function addBarcode() {
     if (!barcode.trim()) return;
-    const match = products.find((p) => p.name.toLowerCase().includes(barcode.toLowerCase()));
-    if (match) { addProduct(match); setError(''); } else { setError(`No se encontró ningún producto para "${barcode}".`); }
+    const codigo = barcode.trim();
+    const porCodigo = products.find((p) => p.sku && p.sku.toLowerCase() === codigo.toLowerCase());
+    const match = porCodigo || products.find((p) => p.name.toLowerCase().includes(codigo.toLowerCase()));
+    if (match) { addProduct(match); setError(''); } else { setError(`No se encontró ningún producto para "${codigo}".`); }
     setBarcode('');
   }
 
@@ -233,7 +236,7 @@ function CajaView({ profile, activeBranchId, branchName }) {
             {filtered.map((p) => (
               <div key={p.id} className="product-card">
                 <button className="product-main" onClick={() => addProduct(p)}>
-                  <div className={`product-icon ${iconClassFor(p.id)}`}>🥤</div>
+                  <div className={`product-icon ${iconClassFor(p.id)}`}>{p.image_url ? <img src={p.image_url} alt="" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }} /> : null}<span style={{ display: p.image_url ? 'none' : 'block' }}>🥤</span></div>
                   <div className="product-info">
                     <h3>{p.name}</h3>
                     <strong>{formatMoney(p.price)}</strong>
@@ -316,6 +319,12 @@ function CajaView({ profile, activeBranchId, branchName }) {
 // Pedidos
 // ==================================================================
 
+function inicioDeHoyISO() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
 function PedidosView({ profile, activeBranchId, onBack }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -328,13 +337,14 @@ function PedidosView({ profile, activeBranchId, onBack }) {
     async function load() {
       setLoading(true);
       setLoadError('');
-      // Consulta liviana: solo el conteo de productos por venta (rápido, sin traer los datos completos)
+      // Solo las ventas de HOY (desde medianoche) — el conteo de productos es liviano y rápido
       const { data, error } = await supabase
         .from('orders')
         .select('*, order_items(count)')
         .eq('branch_id', activeBranchId)
+        .gte('created_at', inicioDeHoyISO())
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(500);
       if (!active) return;
       if (error) {
         console.error('Error cargando pedidos:', error);
@@ -366,8 +376,8 @@ function PedidosView({ profile, activeBranchId, onBack }) {
       <div className="pedidos-header">
         <button className="back-btn" onClick={onBack}><ChevronLeft size={15} />Volver a caja</button>
         <div className="pedidos-stats">
-          <div className="stat-card"><div className="stat-icon"><Receipt size={18} /></div><div><span className="stat-label">Ventas registradas</span><strong>{orders.length}</strong></div></div>
-          <div className="stat-card"><div className="stat-icon"><TrendingUp size={18} /></div><div><span className="stat-label">Total vendido</span><strong>{formatMoney(totalVendido)}</strong></div></div>
+          <div className="stat-card"><div className="stat-icon"><Receipt size={18} /></div><div><span className="stat-label">Ventas de hoy</span><strong>{orders.length}</strong></div></div>
+          <div className="stat-card"><div className="stat-icon"><TrendingUp size={18} /></div><div><span className="stat-label">Total vendido hoy</span><strong>{formatMoney(totalVendido)}</strong></div></div>
           <div className="stat-card"><div className="stat-icon"><Clock size={18} /></div><div><span className="stat-label">Última venta</span><strong>{orders[0] ? formatFecha(orders[0].created_at) : '—'}</strong></div></div>
         </div>
       </div>
@@ -377,7 +387,7 @@ function PedidosView({ profile, activeBranchId, onBack }) {
       ) : loadError ? (
         <div className="pedidos-empty"><div className="empty-icon"><Receipt size={22} /></div><h3>No se pudieron cargar los pedidos</h3><p>{loadError}</p></div>
       ) : orders.length === 0 ? (
-        <div className="pedidos-empty"><div className="empty-icon"><Receipt size={22} /></div><h3>Sin ventas todavía</h3><p>Las ventas que registres en caja van a aparecer aquí.</p></div>
+        <div className="pedidos-empty"><div className="empty-icon"><Receipt size={22} /></div><h3>Sin ventas hoy todavía</h3><p>Las ventas que registres en caja van a aparecer aquí, y se reinician automáticamente cada día a medianoche.</p></div>
       ) : (
         <div className="pedidos-list">
           {orders.map((o) => {
@@ -509,6 +519,308 @@ function PlaceholderView({ label }) {
   );
 }
 
+function ProductosView({ profile, activeBranchId }) {
+  const [productos, setProductos] = useState([]);
+  const [categorias, setCategorias] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [modal, setModal] = useState(null); // null | 'new' | producto object
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: '', price: '', stock: '', category_id: '', sku: '', image_url: '' });
+  const [nuevaCategoria, setNuevaCategoria] = useState(null); // null = oculto, '' = mostrando input vacío
+  const [creandoCategoria, setCreandoCategoria] = useState(false);
+
+  async function cargar() {
+    setLoading(true);
+    const [{ data: prods, error: err1 }, { data: cats, error: err2 }] = await Promise.all([
+      supabase.from('products').select('*').eq('branch_id', activeBranchId).order('name'),
+      supabase.from('categories').select('*').eq('branch_id', activeBranchId).eq('active', true).order('position'),
+    ]);
+    if (err1 || err2) { setError((err1 || err2).message); } else { setProductos(prods || []); setCategorias(cats || []); setError(''); }
+    setLoading(false);
+  }
+
+  useEffect(() => { cargar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [activeBranchId]);
+
+  function abrirNuevo() {
+    setForm({ name: '', price: '', stock: '', category_id: categorias[0]?.id || '', sku: '', image_url: '' });
+    setNuevaCategoria(null);
+    setModal('new');
+  }
+
+  function abrirEditar(p) {
+    setForm({ name: p.name, price: p.price, stock: p.stock, category_id: p.category_id, sku: p.sku || '', image_url: p.image_url || '' });
+    setNuevaCategoria(null);
+    setModal(p);
+  }
+
+  async function crearCategoriaRapida() {
+    const nombre = (nuevaCategoria || '').trim();
+    if (!nombre) { setError('Escribe un nombre para la nueva categoría.'); return; }
+    setCreandoCategoria(true);
+    setError('');
+    const { data, error: err } = await supabase.from('categories').insert({
+      name: nombre, position: categorias.length,
+      organization_id: profile.organization_id, branch_id: activeBranchId, active: true,
+    }).select().single();
+    setCreandoCategoria(false);
+    if (err) { setError(err.message); return; }
+    setCategorias((prev) => [...prev, data]);
+    setForm((f) => ({ ...f, category_id: data.id }));
+    setNuevaCategoria(null);
+  }
+
+  async function guardar() {
+    if (!form.name.trim()) { setError('Ponle un nombre al producto.'); return; }
+    if (!form.category_id) { setError('Elige una categoría (crea una primero en la sección Categorías si no hay ninguna).'); return; }
+    setSaving(true);
+    setError('');
+    const payload = {
+      name: form.name.trim(),
+      price: Number(form.price) || 0,
+      stock: Number(form.stock) || 0,
+      category_id: Number(form.category_id),
+      sku: form.sku.trim() || null,
+      image_url: form.image_url.trim() || null,
+    };
+    if (modal === 'new') {
+      const { error: err } = await supabase.from('products').insert({ ...payload, organization_id: profile.organization_id, branch_id: activeBranchId, active: true });
+      if (err) { setError(err.message); setSaving(false); return; }
+    } else {
+      const { error: err } = await supabase.from('products').update(payload).eq('id', modal.id);
+      if (err) { setError(err.message); setSaving(false); return; }
+    }
+    setSaving(false);
+    setModal(null);
+    cargar();
+  }
+
+  async function toggleActivo(p) {
+    const { error: err } = await supabase.from('products').update({ active: !p.active }).eq('id', p.id);
+    if (err) { setError(err.message); return; }
+    cargar();
+  }
+
+  async function eliminar(p) {
+    if (!window.confirm(`¿Eliminar "${p.name}"? Esto no se puede deshacer. Si tiene ventas registradas, esas líneas de venta también se van a borrar (el total de cada venta se mantiene, solo se pierde el detalle de este producto en ellas).`)) return;
+    const { error: err } = await supabase.from('products').delete().eq('id', p.id);
+    if (err) {
+      const msg = `No se pudo eliminar: ${err.message}`;
+      setError(msg);
+      window.alert(msg);
+      return;
+    }
+    cargar();
+  }
+
+  const nombreCategoria = (id) => categorias.find((c) => c.id === id)?.name || '—';
+
+  return (
+    <div className="list-view">
+      <div className="list-header">
+        <h2>Productos ({productos.length})</h2>
+        <button className="add-button" onClick={abrirNuevo}><Plus size={15} />Nuevo producto</button>
+      </div>
+
+      {error && <div className="cart-error">{error}</div>}
+
+      {loading ? <div className="pedidos-loading">Cargando...</div> : productos.length === 0 ? (
+        <div className="pedidos-empty"><div className="empty-icon"><Coffee size={22} /></div><h3>Sin productos todavía</h3><p>Crea el primero con el botón de arriba.</p></div>
+      ) : (
+        <div className="list-table">
+          <div className="list-row head prod-row"><span>Producto</span><span>Categoría</span><span>Precio</span><span>Stock</span><span></span></div>
+          {productos.map((p) => (
+            <div key={p.id} className="list-row prod-row">
+              <div className="prod-name-cell">
+                <div className={`product-icon ${iconClassFor(p.id)} prod-thumb-sm`}>{p.image_url ? <img src={p.image_url} alt="" /> : '🥤'}</div>
+                <div><div className="list-name">{p.name}</div>{p.sku && <div className="list-sub">Código: {p.sku}</div>}</div>
+              </div>
+              <div className="list-sub">{nombreCategoria(p.category_id)}</div>
+              <div className="list-name">{formatMoney(p.price)}</div>
+              <button className={`balance-chip ${p.stock > 0 ? 'positive' : 'negative'} chip-button`} onClick={() => toggleActivo(p)} title={p.active ? 'Activo — clic para desactivar' : 'Inactivo — clic para activar'}>{p.stock} {p.active ? '' : '(inactivo)'}</button>
+              <div className="cat-actions">
+                <button className="icon-btn" title="Editar" onClick={() => abrirEditar(p)}><Coffee size={14} /></button>
+                <button className="icon-btn danger" title="Eliminar" onClick={() => eliminar(p)}><Trash2 size={14} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {modal && (
+        <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && !saving && setModal(null)}>
+          <div className="payment-modal cat-modal">
+            <button className="modal-close" onClick={() => setModal(null)}><X size={16} /></button>
+            <h2>{modal === 'new' ? 'Nuevo producto' : 'Editar producto'}</h2>
+
+            <div className="login-field" style={{ textAlign: 'left', marginTop: 18 }}>
+              <label>NOMBRE</label>
+              <div className="field"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ej: Agua mineral" autoFocus /></div>
+            </div>
+            <div className="form-grid-2">
+              <div className="login-field" style={{ textAlign: 'left' }}>
+                <label>PRECIO (S/)</label>
+                <div className="field"><input type="number" step="0.01" min="0" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="0.00" /></div>
+              </div>
+              <div className="login-field" style={{ textAlign: 'left' }}>
+                <label>STOCK</label>
+                <div className="field"><input type="number" min="0" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} placeholder="0" /></div>
+              </div>
+            </div>
+            <div className="login-field" style={{ textAlign: 'left' }}>
+              <label>CATEGORÍA</label>
+              {nuevaCategoria === null ? (
+                <div className="select-like category-select"><select value={form.category_id} onChange={(e) => { if (e.target.value === '__nueva__') { setNuevaCategoria(''); } else { setForm({ ...form, category_id: e.target.value }); } }}>
+                  {categorias.length === 0 && <option value="">— no hay categorías todavía —</option>}
+                  {categorias.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  <option value="__nueva__">+ Crear nueva categoría...</option>
+                </select><ChevronDown size={15} /></div>
+              ) : (
+                <div className="new-cat-row">
+                  <div className="field"><input value={nuevaCategoria} onChange={(e) => setNuevaCategoria(e.target.value)} placeholder="Nombre de la categoría nueva" autoFocus onKeyDown={(e) => e.key === 'Enter' && crearCategoriaRapida()} /></div>
+                  <button className="add-button" type="button" onClick={crearCategoriaRapida} disabled={creandoCategoria}>{creandoCategoria ? '...' : 'Crear'}</button>
+                  <button className="icon-btn" type="button" onClick={() => setNuevaCategoria(null)}><X size={14} /></button>
+                </div>
+              )}
+            </div>
+            <div className="login-field" style={{ textAlign: 'left' }}>
+              <label>CÓDIGO DE BARRAS (opcional)</label>
+              <div className="field"><input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} placeholder="Escanea o escribe el código" /></div>
+              <span className="field-hint">Con esto el cajero puede escanear el producto en la Caja rápida.</span>
+            </div>
+            <div className="login-field" style={{ textAlign: 'left' }}>
+              <label>IMAGEN (opcional, link a una foto)</label>
+              <div className="field"><input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} placeholder="https://..." /></div>
+            </div>
+
+            {error && <div className="cart-error">{error}</div>}
+            <button className="login-submit" onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CategoriasView({ profile, activeBranchId }) {
+  const [categorias, setCategorias] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [modal, setModal] = useState(null); // null | 'new' | categoria object
+  const [nombre, setNombre] = useState('');
+  const [posicion, setPosicion] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  async function cargar() {
+    setLoading(true);
+    const { data, error: err } = await supabase.from('categories').select('*').eq('branch_id', activeBranchId).order('position').order('name');
+    if (err) { setError(err.message); } else { setCategorias(data || []); setError(''); }
+    setLoading(false);
+  }
+
+  useEffect(() => { cargar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [activeBranchId]);
+
+  function abrirNueva() {
+    setNombre('');
+    setPosicion(categorias.length);
+    setModal('new');
+  }
+
+  function abrirEditar(cat) {
+    setNombre(cat.name);
+    setPosicion(cat.position);
+    setModal(cat);
+  }
+
+  async function guardar() {
+    if (!nombre.trim()) { setError('Ponle un nombre a la categoría.'); return; }
+    setSaving(true);
+    setError('');
+    if (modal === 'new') {
+      const { error: err } = await supabase.from('categories').insert({
+        name: nombre.trim(), position: Number(posicion) || 0,
+        organization_id: profile.organization_id, branch_id: activeBranchId, active: true,
+      });
+      if (err) { setError(err.message); setSaving(false); return; }
+    } else {
+      const { error: err } = await supabase.from('categories').update({ name: nombre.trim(), position: Number(posicion) || 0 }).eq('id', modal.id);
+      if (err) { setError(err.message); setSaving(false); return; }
+    }
+    setSaving(false);
+    setModal(null);
+    cargar();
+  }
+
+  async function toggleActiva(cat) {
+    const { error: err } = await supabase.from('categories').update({ active: !cat.active }).eq('id', cat.id);
+    if (err) { setError(err.message); return; }
+    cargar();
+  }
+
+  async function eliminar(cat) {
+    if (!window.confirm(`¿Eliminar la categoría "${cat.name}"? Esto no se puede deshacer.`)) return;
+    const { error: err } = await supabase.from('categories').delete().eq('id', cat.id);
+    if (err) {
+      const msg = err.code === '23503'
+        ? `No se pudo eliminar "${cat.name}" porque todavía tiene productos dentro. Mueve o elimina esos productos primero, o usa "Desactivar" en su lugar (clic en el chip de estado).`
+        : `No se pudo eliminar: ${err.message}`;
+      setError(msg);
+      window.alert(msg);
+      return;
+    }
+    cargar();
+  }
+
+  return (
+    <div className="list-view">
+      <div className="list-header">
+        <h2>Categorías ({categorias.length})</h2>
+        <button className="add-button" onClick={abrirNueva}><Plus size={15} />Nueva categoría</button>
+      </div>
+
+      {error && <div className="cart-error">{error}</div>}
+
+      {loading ? <div className="pedidos-loading">Cargando...</div> : categorias.length === 0 ? (
+        <div className="pedidos-empty"><div className="empty-icon"><Tag size={22} /></div><h3>Sin categorías todavía</h3><p>Crea la primera con el botón de arriba.</p></div>
+      ) : (
+        <div className="list-table">
+          <div className="list-row head cat-row"><span>Nombre</span><span>Orden</span><span>Estado</span><span></span></div>
+          {categorias.map((c) => (
+            <div key={c.id} className="list-row cat-row">
+              <div className="list-name">{c.name}</div>
+              <div className="list-sub">{c.position}</div>
+              <button className={`balance-chip ${c.active ? 'positive' : 'zero'} chip-button`} onClick={() => toggleActiva(c)}>{c.active ? 'Activa' : 'Inactiva'}</button>
+              <div className="cat-actions">
+                <button className="icon-btn" title="Editar" onClick={() => abrirEditar(c)}><Tag size={14} /></button>
+                <button className="icon-btn danger" title="Eliminar" onClick={() => eliminar(c)}><Trash2 size={14} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {modal && (
+        <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && !saving && setModal(null)}>
+          <div className="payment-modal cat-modal">
+            <button className="modal-close" onClick={() => setModal(null)}><X size={16} /></button>
+            <h2>{modal === 'new' ? 'Nueva categoría' : 'Editar categoría'}</h2>
+            <div className="login-field" style={{ textAlign: 'left', marginTop: 20 }}>
+              <label>NOMBRE</label>
+              <div className="field"><input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej: Bebidas" autoFocus /></div>
+            </div>
+            <div className="login-field" style={{ textAlign: 'left' }}>
+              <label>ORDEN (0 = primero)</label>
+              <div className="field"><input type="number" value={posicion} onChange={(e) => setPosicion(e.target.value)} /></div>
+            </div>
+            {error && <div className="cart-error">{error}</div>}
+            <button className="login-submit" onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ==================================================================
 // Shell principal (sidebar + topbar)
 // ==================================================================
@@ -553,8 +865,6 @@ function MainApp({ profile }) {
   ];
 
   const placeholderViews = {
-    productos: 'Productos',
-    categorias: 'Categorías',
     solicitudes: 'Solicitudes',
     gananciasAbonados: 'Abonados S/',
     recargas: 'Recargas',
@@ -611,6 +921,8 @@ function MainApp({ profile }) {
         {view === 'pedidos' && <PedidosView profile={profile} activeBranchId={activeBranchId} onBack={() => setView('caja')} />}
         {view === 'abonados' && <AbonadosView activeBranchId={activeBranchId} />}
         {view === 'creditos' && <CreditosView activeBranchId={activeBranchId} />}
+        {view === 'categorias' && <CategoriasView profile={profile} activeBranchId={activeBranchId} />}
+        {view === 'productos' && <ProductosView profile={profile} activeBranchId={activeBranchId} />}
         {placeholderViews[view] && <PlaceholderView label={placeholderViews[view]} />}
       </main>
     </div>
