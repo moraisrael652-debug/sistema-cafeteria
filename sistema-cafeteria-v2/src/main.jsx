@@ -363,10 +363,37 @@ function PedidosView({ profile, activeBranchId, onBack }) {
     if (expanded === order.id) { setExpanded(null); return; }
     setExpanded(order.id);
     if (!itemsByOrder[order.id]) {
-      const { data, error } = await supabase.from('order_items').select('quantity, products(name, price)').eq('order_id', order.id);
+      const { data, error } = await supabase.from('order_items').select('quantity, product_id, products(name, price)').eq('order_id', order.id);
       if (error) console.error('Error cargando detalle del pedido:', error);
       setItemsByOrder((prev) => ({ ...prev, [order.id]: data || [] }));
     }
+  }
+
+  const [deleting, setDeleting] = useState(null);
+
+  async function eliminarPedido(order, e) {
+    e.stopPropagation();
+    if (!window.confirm(`¿Eliminar el pedido #${order.id} (${formatMoney(order.total)})? Esto no se puede deshacer. El stock de sus productos se va a devolver automáticamente.`)) return;
+    setDeleting(order.id);
+
+    // Trae los items (usa los ya cargados si el pedido estaba expandido)
+    let items = itemsByOrder[order.id];
+    if (!items) {
+      const { data } = await supabase.from('order_items').select('quantity, product_id').eq('order_id', order.id);
+      items = data || [];
+    }
+
+    // Devuelve el stock de cada producto (mejor esfuerzo, no bloquea el borrado si falla)
+    await Promise.all(items.map(async (it) => {
+      const { data: prod } = await supabase.from('products').select('stock').eq('id', it.product_id).single();
+      if (prod) await supabase.from('products').update({ stock: prod.stock + it.quantity }).eq('id', it.product_id);
+    }));
+
+    const { error: err } = await supabase.from('orders').delete().eq('id', order.id);
+    setDeleting(null);
+    if (err) { window.alert(`No se pudo eliminar el pedido: ${err.message}`); return; }
+    setOrders((prev) => prev.filter((o) => o.id !== order.id));
+    if (expanded === order.id) setExpanded(null);
   }
 
   const totalVendido = orders.reduce((s, o) => s + Number(o.total), 0);
@@ -400,6 +427,7 @@ function PedidosView({ profile, activeBranchId, onBack }) {
                   <div className="pedido-main"><span className="pedido-id">Pedido #{o.id}</span><span className="pedido-fecha"><Clock size={10} />{formatFecha(o.created_at)}</span></div>
                   <span className="pedido-items-count">{itemCount} {itemCount === 1 ? 'producto' : 'productos'}</span>
                   <span className="pedido-total">{formatMoney(o.total)}</span>
+                  <button className="icon-btn danger pedido-delete" title="Eliminar pedido" onClick={(e) => eliminarPedido(o, e)} disabled={deleting === o.id}><Trash2 size={14} /></button>
                   <ChevronDown size={16} className={`chevron ${expanded === o.id ? 'rotated' : ''}`} />
                 </div>
                 {expanded === o.id && (
