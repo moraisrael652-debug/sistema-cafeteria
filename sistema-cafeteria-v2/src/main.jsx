@@ -4,8 +4,11 @@ import {
   ShoppingCart, Search, Plus, Minus, Trash2, X, CheckCircle2, ChevronDown,
   ChevronLeft, ChevronRight, LayoutGrid, Receipt, Users, CreditCard as CreditCardIcon,
   LogOut, Wallet, Banknote, Smartphone, Clock, Package, TrendingUp,
-  Coffee, Tag, Link2, Globe, Megaphone, UtensilsCrossed, Settings, Printer, Bell, Camera,
+  Coffee, Tag, Link2, Globe, Megaphone, UtensilsCrossed, Settings, Printer, Bell, Camera, XCircle,
 } from 'lucide-react';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from 'recharts';
 import { supabase } from './supabaseClient.js';
 
 // ==================================================================
@@ -854,6 +857,484 @@ function CategoriasView({ profile, activeBranchId }) {
 
 const ROLE_LABEL = { SERVICE_ADMIN: 'Administrador de servicio', COMPANY_ADMIN: 'Administrador', CASHIER: 'Cajero/a' };
 
+// ==================================================================
+// Empresa
+// ==================================================================
+
+function EmpresaView({ profile, isAdmin }) {
+  const [org, setOrg] = useState(null);
+  const [branches, setBranches] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [nombre, setNombre] = useState('');
+  const [ruc, setRuc] = useState('');
+  const [editBranch, setEditBranch] = useState(null);
+  const [branchForm, setBranchForm] = useState({ name: '', address: '', phone: '' });
+
+  async function cargar() {
+    setLoading(true);
+    const [{ data: orgData, error: e1 }, { data: br, error: e2 }] = await Promise.all([
+      supabase.from('organizations').select('*').eq('id', profile.organization_id).single(),
+      supabase.from('branches').select('*').eq('organization_id', profile.organization_id).order('name'),
+    ]);
+    if (e1 || e2) { setError((e1 || e2).message); } else {
+      setOrg(orgData); setNombre(orgData.name); setRuc(orgData.ruc || '');
+      setBranches(br || []); setError('');
+    }
+    setLoading(false);
+  }
+  useEffect(() => { cargar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [profile.organization_id]);
+
+  async function guardarOrg() {
+    setSaving(true); setError('');
+    const { error: err } = await supabase.from('organizations').update({ name: nombre.trim(), ruc: ruc.trim() || null }).eq('id', profile.organization_id);
+    setSaving(false);
+    if (err) { setError(`No se pudo guardar: ${err.message}`); return; }
+    cargar();
+  }
+
+  function abrirEditBranch(b) {
+    setBranchForm({ name: b.name, address: b.address || '', phone: b.phone || '' });
+    setEditBranch(b.id);
+  }
+
+  async function guardarBranch(id) {
+    setSaving(true); setError('');
+    const { error: err } = await supabase.from('branches').update({ name: branchForm.name.trim(), address: branchForm.address.trim() || null, phone: branchForm.phone.trim() || null }).eq('id', id);
+    setSaving(false);
+    if (err) { setError(`No se pudo guardar la sede: ${err.message}`); return; }
+    setEditBranch(null);
+    cargar();
+  }
+
+  if (loading) return <div className="pedidos-loading">Cargando...</div>;
+
+  return (
+    <div className="list-view">
+      <div className="list-header"><h2>Empresa</h2></div>
+      {error && <div className="cart-error">{error}</div>}
+
+      <div className="empresa-card">
+        <h3>Datos del negocio</h3>
+        {isAdmin ? (
+          <>
+            <div className="login-field" style={{ textAlign: 'left' }}><label>NOMBRE</label><div className="field"><input value={nombre} onChange={(e) => setNombre(e.target.value)} /></div></div>
+            <div className="login-field" style={{ textAlign: 'left' }}><label>RUC</label><div className="field"><input value={ruc} onChange={(e) => setRuc(e.target.value)} placeholder="Opcional" /></div></div>
+            <button className="login-submit" style={{ maxWidth: 200 }} onClick={guardarOrg} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
+          </>
+        ) : (
+          <>
+            <p><b>{org?.name}</b></p>
+            {org?.ruc && <p className="list-sub">RUC: {org.ruc}</p>}
+          </>
+        )}
+      </div>
+
+      <h3 className="section-subtitle">Sedes ({branches.length})</h3>
+      <div className="list-table">
+        {branches.map((b) => (
+          <div key={b.id} className="list-row empresa-branch-row">
+            {editBranch === b.id ? (
+              <>
+                <div className="field"><input value={branchForm.name} onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })} placeholder="Nombre" /></div>
+                <div className="field"><input value={branchForm.address} onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })} placeholder="Dirección" /></div>
+                <div className="field"><input value={branchForm.phone} onChange={(e) => setBranchForm({ ...branchForm, phone: e.target.value })} placeholder="Teléfono" /></div>
+                <div className="cat-actions">
+                  <button className="icon-btn" onClick={() => guardarBranch(b.id)} disabled={saving}><CheckCircle2 size={14} /></button>
+                  <button className="icon-btn" onClick={() => setEditBranch(null)}><X size={14} /></button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="list-name">{b.name}</div>
+                <div className="list-sub">{b.address || '—'}</div>
+                <div className="list-sub">{b.phone || '—'}</div>
+                {isAdmin ? <button className="icon-btn" onClick={() => abrirEditBranch(b)}><Tag size={14} /></button> : <span />}
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ==================================================================
+// Ganancias
+// ==================================================================
+
+function GananciasView({ activeBranchId }) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [totales, setTotales] = useState({ historico: 0, ventasHistorico: 0, mes: 0, semana: 0 });
+  const [chartData, setChartData] = useState([]);
+  const [topProductos, setTopProductos] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    async function cargar() {
+      setLoading(true);
+      setError('');
+      const ahora = new Date();
+      const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1).toISOString();
+      const inicioSemana = new Date(); inicioSemana.setDate(ahora.getDate() - 6); inicioSemana.setHours(0, 0, 0, 0);
+      const hace30 = new Date(); hace30.setDate(ahora.getDate() - 29); hace30.setHours(0, 0, 0, 0);
+
+      const [histRes, mesRes, ult30Res] = await Promise.all([
+        supabase.from('orders').select('total').eq('branch_id', activeBranchId),
+        supabase.from('orders').select('total').eq('branch_id', activeBranchId).gte('created_at', inicioMes),
+        supabase.from('orders').select('total, created_at, order_items(quantity, product_id, products(name))').eq('branch_id', activeBranchId).gte('created_at', hace30.toISOString()),
+      ]);
+
+      if (!active) return;
+      if (histRes.error || mesRes.error || ult30Res.error) {
+        setError((histRes.error || mesRes.error || ult30Res.error).message);
+        setLoading(false);
+        return;
+      }
+
+      const historico = histRes.data.reduce((s, o) => s + Number(o.total), 0);
+      const mes = mesRes.data.reduce((s, o) => s + Number(o.total), 0);
+
+      const ult30 = ult30Res.data;
+      const semanaOrders = ult30.filter((o) => new Date(o.created_at) >= inicioSemana);
+      const semana = semanaOrders.reduce((s, o) => s + Number(o.total), 0);
+
+      // Gráfico: últimos 7 días
+      const dias = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(); d.setDate(ahora.getDate() - i); d.setHours(0, 0, 0, 0);
+        const dNext = new Date(d); dNext.setDate(d.getDate() + 1);
+        const total = ult30.filter((o) => { const t = new Date(o.created_at); return t >= d && t < dNext; }).reduce((s, o) => s + Number(o.total), 0);
+        dias.push({ dia: d.toLocaleDateString('es-PE', { weekday: 'short' }), total: Number(total.toFixed(2)) });
+      }
+
+      // Top productos (últimos 30 días)
+      const conteo = {};
+      ult30.forEach((o) => (o.order_items || []).forEach((it) => {
+        const nombre = it.products?.name || 'Producto';
+        conteo[nombre] = (conteo[nombre] || 0) + it.quantity;
+      }));
+      const top = Object.entries(conteo).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([nombre, cantidad]) => ({ nombre, cantidad }));
+
+      setTotales({ historico, ventasHistorico: histRes.data.length, mes, semana });
+      setChartData(dias);
+      setTopProductos(top);
+      setLoading(false);
+    }
+    cargar();
+    return () => { active = false; };
+  }, [activeBranchId]);
+
+  if (loading) return <div className="pedidos-loading">Cargando...</div>;
+
+  return (
+    <div className="pedidos-view">
+      {error && <div className="cart-error">{error}</div>}
+      <div className="pedidos-stats" style={{ marginBottom: 24 }}>
+        <div className="stat-card"><div className="stat-icon"><TrendingUp size={18} /></div><div><span className="stat-label">Total histórico</span><strong>{formatMoney(totales.historico)}</strong></div></div>
+        <div className="stat-card"><div className="stat-icon"><Receipt size={18} /></div><div><span className="stat-label">Ventas registradas</span><strong>{totales.ventasHistorico}</strong></div></div>
+        <div className="stat-card"><div className="stat-icon"><Clock size={18} /></div><div><span className="stat-label">Este mes</span><strong>{formatMoney(totales.mes)}</strong></div></div>
+        <div className="stat-card"><div className="stat-icon"><Clock size={18} /></div><div><span className="stat-label">Últimos 7 días</span><strong>{formatMoney(totales.semana)}</strong></div></div>
+      </div>
+
+      <h3 className="section-subtitle">Ventas de los últimos 7 días</h3>
+      <div className="chart-card">
+        <ResponsiveContainer width="100%" height={240}>
+          <BarChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#33503F" />
+            <XAxis dataKey="dia" stroke="#93AC9E" fontSize={11} />
+            <YAxis stroke="#93AC9E" fontSize={11} />
+            <Tooltip contentStyle={{ background: '#1F3329', border: '1px solid #33503F', borderRadius: 8, color: '#F5EFE4' }} formatter={(v) => [formatMoney(v), 'Total']} />
+            <Bar dataKey="total" fill="#E8A33D" radius={[6, 6, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <h3 className="section-subtitle">Productos más vendidos (últimos 30 días)</h3>
+      {topProductos.length === 0 ? <p className="list-sub">Sin ventas en este período.</p> : (
+        <div className="list-table">
+          {topProductos.map((p, i) => (
+            <div key={i} className="list-row top-prod-row">
+              <div className="list-name">{i + 1}. {p.nombre}</div>
+              <span className="balance-chip positive">{p.cantidad} vendidos</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==================================================================
+// Solicitudes (de crédito)
+// ==================================================================
+
+function SolicitudesView({ profile, activeBranchId }) {
+  const [solicitudes, setSolicitudes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [procesando, setProcesando] = useState(null);
+
+  async function cargar() {
+    setLoading(true);
+    const { data, error: err } = await supabase.from('credito_solicitudes').select('*').eq('branch_id', activeBranchId).is('resolved_at', null).order('created_at', { ascending: false });
+    if (err) { setError(err.message); } else { setSolicitudes(data || []); setError(''); }
+    setLoading(false);
+  }
+  useEffect(() => { cargar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [activeBranchId]);
+
+  async function aprobar(s) {
+    setProcesando(s.id);
+    setError('');
+    const { data: cliente, error: err1 } = await supabase.from('credito_clientes').insert({
+      nombre: s.nombre || 'Sin nombre', telefono: s.telefono, tipo: s.tipo, aula: s.aula, email: s.email,
+      organization_id: profile.organization_id, branch_id: activeBranchId, active: true,
+    }).select().single();
+    if (err1) { setError(err1.message); setProcesando(null); return; }
+    const { error: err2 } = await supabase.from('credito_solicitudes').update({ estado: 'approved', credito_cliente_id: cliente.id, resolved_at: new Date().toISOString() }).eq('id', s.id);
+    setProcesando(null);
+    if (err2) { setError(err2.message); return; }
+    cargar();
+  }
+
+  async function rechazar(s) {
+    if (!window.confirm(`¿Rechazar la solicitud de "${s.nombre || 'este cliente'}"?`)) return;
+    setProcesando(s.id);
+    const { error: err } = await supabase.from('credito_solicitudes').update({ estado: 'rejected', resolved_at: new Date().toISOString() }).eq('id', s.id);
+    setProcesando(null);
+    if (err) { setError(err.message); return; }
+    cargar();
+  }
+
+  return (
+    <div className="list-view">
+      <div className="list-header"><h2>Solicitudes de crédito ({solicitudes.length})</h2></div>
+      {error && <div className="cart-error">{error}</div>}
+      {loading ? <div className="pedidos-loading">Cargando...</div> : solicitudes.length === 0 ? (
+        <div className="pedidos-empty"><div className="empty-icon"><Link2 size={22} /></div><h3>Sin solicitudes pendientes</h3><p>Las solicitudes nuevas de crédito van a aparecer aquí.</p></div>
+      ) : (
+        <div className="list-table">
+          <div className="list-row head sol-row"><span>Nombre</span><span>Contacto</span><span>Tipo</span><span></span></div>
+          {solicitudes.map((s) => (
+            <div key={s.id} className="list-row sol-row">
+              <div className="list-name">{s.nombre || 'Sin nombre'}</div>
+              <div className="list-sub">{s.telefono || s.email || '—'}</div>
+              <div className="list-sub">{s.tipo || '—'}{s.aula ? ` · ${s.aula}` : ''}</div>
+              <div className="cat-actions">
+                <button className="icon-btn" title="Aprobar" onClick={() => aprobar(s)} disabled={procesando === s.id}><CheckCircle2 size={14} /></button>
+                <button className="icon-btn danger" title="Rechazar" onClick={() => rechazar(s)} disabled={procesando === s.id}><XCircle size={14} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==================================================================
+// Menú de la semana
+// ==================================================================
+
+const DIAS_SEMANA = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+const DIA_LABEL = { lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles', jueves: 'Jueves', viernes: 'Viernes', sabado: 'Sábado', domingo: 'Domingo' };
+
+function MenuSemanaView({ isAdmin }) {
+  const [menu, setMenu] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [savedOk, setSavedOk] = useState(false);
+
+  async function cargar() {
+    setLoading(true);
+    const { data, error: err } = await supabase.from('settings').select('*').eq('key', 'menu_semana').maybeSingle();
+    if (err) { setError(err.message); } else { setMenu((data && data.value) || {}); setError(''); }
+    setLoading(false);
+  }
+  useEffect(() => { cargar(); }, []);
+
+  async function guardar() {
+    setSaving(true); setError(''); setSavedOk(false);
+    const { error: err } = await supabase.from('settings').upsert({ key: 'menu_semana', value: menu, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    setSaving(false);
+    if (err) { setError(err.message); return; }
+    setSavedOk(true);
+    setTimeout(() => setSavedOk(false), 2500);
+  }
+
+  if (loading) return <div className="pedidos-loading">Cargando...</div>;
+
+  return (
+    <div className="list-view">
+      <div className="list-header"><h2>Menú de la semana</h2></div>
+      {error && <div className="cart-error">{error}</div>}
+      {savedOk && <div className="barcode-status" style={{ marginBottom: 16 }}><CheckCircle2 size={14} />Guardado</div>}
+      <div className="menu-semana-grid">
+        {DIAS_SEMANA.map((dia) => (
+          <div key={dia} className="menu-dia-card">
+            <label>{DIA_LABEL[dia]}</label>
+            {isAdmin ? (
+              <textarea rows={3} value={menu[dia] || ''} onChange={(e) => setMenu({ ...menu, [dia]: e.target.value })} placeholder="Ej: Arroz con pollo + refresco" />
+            ) : (
+              <p>{menu[dia] || 'Sin definir'}</p>
+            )}
+          </div>
+        ))}
+      </div>
+      {isAdmin && <button className="login-submit" style={{ maxWidth: 200, marginTop: 16 }} onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : 'Guardar menú'}</button>}
+    </div>
+  );
+}
+
+// ==================================================================
+// Comunicados
+// ==================================================================
+
+function ComunicadosView({ profile, activeBranchId, isAdmin }) {
+  const [anuncios, setAnuncios] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [modal, setModal] = useState(null);
+  const [form, setForm] = useState({ titulo: '', mensaje: '' });
+  const [saving, setSaving] = useState(false);
+
+  async function cargar() {
+    setLoading(true);
+    const { data, error: err } = await supabase.from('anuncios').select('*').order('created_at', { ascending: false });
+    if (err) { setError(err.message); } else { setAnuncios(data || []); setError(''); }
+    setLoading(false);
+  }
+  useEffect(() => { cargar(); }, []);
+
+  function abrirNuevo() { setForm({ titulo: '', mensaje: '' }); setModal('new'); }
+
+  async function guardar() {
+    if (!form.titulo.trim() || !form.mensaje.trim()) { setError('Completa título y mensaje.'); return; }
+    setSaving(true); setError('');
+    const { error: err } = await supabase.from('anuncios').insert({
+      titulo: form.titulo.trim(), mensaje: form.mensaje.trim(),
+      organization_id: profile.organization_id, branch_id: activeBranchId, active: true,
+    });
+    setSaving(false);
+    if (err) { setError(err.message); return; }
+    setModal(null);
+    cargar();
+  }
+
+  async function toggleActivo(a) {
+    const { error: err } = await supabase.from('anuncios').update({ active: !a.active }).eq('id', a.id);
+    if (err) { setError(err.message); return; }
+    cargar();
+  }
+
+  async function eliminar(a) {
+    if (!window.confirm(`¿Eliminar el comunicado "${a.titulo}"?`)) return;
+    const { error: err } = await supabase.from('anuncios').delete().eq('id', a.id);
+    if (err) { window.alert(`No se pudo eliminar: ${err.message}`); return; }
+    cargar();
+  }
+
+  return (
+    <div className="list-view">
+      <div className="list-header">
+        <h2>Comunicados ({anuncios.length})</h2>
+        {isAdmin && <button className="add-button" onClick={abrirNuevo}><Plus size={15} />Nuevo comunicado</button>}
+      </div>
+      {error && <div className="cart-error">{error}</div>}
+      {loading ? <div className="pedidos-loading">Cargando...</div> : anuncios.length === 0 ? (
+        <div className="pedidos-empty"><div className="empty-icon"><Megaphone size={22} /></div><h3>Sin comunicados</h3><p>{isAdmin ? 'Crea el primero con el botón de arriba.' : 'Todavía no hay avisos publicados.'}</p></div>
+      ) : (
+        <div className="anuncios-list">
+          {anuncios.map((a) => (
+            <div key={a.id} className={`anuncio-card ${a.active ? '' : 'inactivo'}`}>
+              <div className="anuncio-top">
+                <h4>{a.titulo}</h4>
+                {isAdmin && (
+                  <div className="cat-actions">
+                    <button className="icon-btn" onClick={() => toggleActivo(a)} title={a.active ? 'Ocultar' : 'Publicar'}>{a.active ? <CheckCircle2 size={14} /> : <XCircle size={14} />}</button>
+                    <button className="icon-btn danger" onClick={() => eliminar(a)}><Trash2 size={14} /></button>
+                  </div>
+                )}
+              </div>
+              <p>{a.mensaje}</p>
+              <span className="anuncio-fecha">{formatFecha(a.created_at)}{!a.active && ' · oculto'}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {modal && (
+        <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && !saving && setModal(null)}>
+          <div className="payment-modal cat-modal">
+            <button className="modal-close" onClick={() => setModal(null)}><X size={16} /></button>
+            <h2>Nuevo comunicado</h2>
+            <div className="login-field" style={{ textAlign: 'left', marginTop: 18 }}>
+              <label>TÍTULO</label>
+              <div className="field"><input value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} autoFocus /></div>
+            </div>
+            <div className="login-field" style={{ textAlign: 'left' }}>
+              <label>MENSAJE</label>
+              <div className="field" style={{ height: 'auto', padding: '10px 13px' }}><textarea rows={4} style={{ width: '100%', border: 0, outline: 0, background: 'transparent', color: 'var(--text)', font: 'inherit', resize: 'vertical' }} value={form.mensaje} onChange={(e) => setForm({ ...form, mensaje: e.target.value })} /></div>
+            </div>
+            {error && <div className="cart-error">{error}</div>}
+            <button className="login-submit" onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : 'Publicar'}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==================================================================
+// Abonados S/ (reporte de saldos)
+// ==================================================================
+
+function AbonadosGananciasView({ activeBranchId }) {
+  const [abonados, setAbonados] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    supabase.from('abonados').select('*').eq('branch_id', activeBranchId).eq('active', true).order('balance', { ascending: false }).then(({ data, error: err }) => {
+      if (!active) return;
+      if (err) setError(err.message); else setAbonados(data || []);
+      setLoading(false);
+    });
+    return () => { active = false; };
+  }, [activeBranchId]);
+
+  const totalSaldo = abonados.reduce((s, a) => s + Number(a.balance), 0);
+  const aFavor = abonados.filter((a) => a.balance > 0).length;
+  const enContra = abonados.filter((a) => a.balance < 0).length;
+
+  return (
+    <div className="pedidos-view">
+      {error && <div className="cart-error">{error}</div>}
+      <div className="pedidos-stats" style={{ marginBottom: 24 }}>
+        <div className="stat-card"><div className="stat-icon"><Wallet size={18} /></div><div><span className="stat-label">Saldo total</span><strong>{formatMoney(totalSaldo)}</strong></div></div>
+        <div className="stat-card"><div className="stat-icon"><CheckCircle2 size={18} /></div><div><span className="stat-label">Con saldo a favor</span><strong>{aFavor}</strong></div></div>
+        <div className="stat-card"><div className="stat-icon"><XCircle size={18} /></div><div><span className="stat-label">Con saldo negativo</span><strong>{enContra}</strong></div></div>
+      </div>
+      {loading ? <div className="pedidos-loading">Cargando...</div> : (
+        <div className="list-table">
+          <div className="list-row head"><span>Alumno</span><span>Apoderado</span><span>Saldo</span></div>
+          {abonados.map((a) => (
+            <div key={a.id} className="list-row">
+              <div className="list-name">{a.student_name}</div>
+              <div className="list-name">{a.parent_name}</div>
+              <span className={`balance-chip ${a.balance > 0 ? 'positive' : a.balance < 0 ? 'negative' : 'zero'}`}>{formatMoney(a.balance)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MainApp({ profile }) {
   const [view, setView] = useState('caja');
   const [branches, setBranches] = useState([]);
@@ -901,15 +1382,9 @@ function MainApp({ profile }) {
   ];
 
   const placeholderViews = {
-    solicitudes: 'Solicitudes',
-    gananciasAbonados: 'Abonados S/',
     recargas: 'Recargas',
     clientesApp: 'Clientes app',
-    comunicados: 'Comunicados',
-    menuSemana: 'Menú de la semana',
     configuracion: 'Configuración',
-    empresa: 'Empresa',
-    ganancias: 'Ganancias',
   };
 
   if (!activeBranchId) {
@@ -965,6 +1440,12 @@ function MainApp({ profile }) {
         {view === 'creditos' && <CreditosView activeBranchId={activeBranchId} />}
         {view === 'categorias' && <CategoriasView profile={profile} activeBranchId={activeBranchId} />}
         {view === 'productos' && <ProductosView profile={profile} activeBranchId={activeBranchId} />}
+        {view === 'empresa' && <EmpresaView profile={profile} isAdmin={isAdmin} />}
+        {view === 'ganancias' && <GananciasView activeBranchId={activeBranchId} />}
+        {view === 'solicitudes' && <SolicitudesView profile={profile} activeBranchId={activeBranchId} />}
+        {view === 'menuSemana' && <MenuSemanaView isAdmin={isAdmin} />}
+        {view === 'comunicados' && <ComunicadosView profile={profile} activeBranchId={activeBranchId} isAdmin={isAdmin} />}
+        {view === 'gananciasAbonados' && <AbonadosGananciasView activeBranchId={activeBranchId} />}
         {placeholderViews[view] && <PlaceholderView label={placeholderViews[view]} />}
       </main>
     </div>
