@@ -1,9 +1,8 @@
-
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   ShoppingCart, Search, Plus, Minus, Trash2, X, CheckCircle2, ChevronDown,
-  ChevronLeft, LayoutGrid, Receipt, Users, CreditCard as CreditCardIcon,
+  ChevronLeft, ChevronRight, LayoutGrid, Receipt, Users, CreditCard as CreditCardIcon,
   LogOut, Wallet, Banknote, Smartphone, Clock, Package, TrendingUp,
   Coffee, Tag, Link2, Globe, Megaphone, UtensilsCrossed, Settings, Printer, Bell, Camera,
 } from 'lucide-react';
@@ -859,7 +858,16 @@ function MainApp({ profile }) {
   const [view, setView] = useState('caja');
   const [branches, setBranches] = useState([]);
   const [activeBranchId, setActiveBranchId] = useState(profile.branch_id);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('sidebarCollapsed') === 'true');
   const isAdmin = profile.role === 'SERVICE_ADMIN' || profile.role === 'COMPANY_ADMIN';
+
+  function toggleSidebar() {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem('sidebarCollapsed', String(next));
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -910,10 +918,16 @@ function MainApp({ profile }) {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand"><div className="brand-mark">CA</div><div><strong>Cafetería</strong><span>Sistema de Caja</span></div></div>
+      <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+        <div className="brand">
+          <div className="brand-mark">CA</div>
+          <div className="sidebar-label"><strong>Cafetería</strong><span>Sistema de Caja</span></div>
+          <button className="collapse-toggle" onClick={toggleSidebar} title={sidebarCollapsed ? 'Abrir menú' : 'Colapsar menú'}>
+            {sidebarCollapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+          </button>
+        </div>
 
-        <div className="branch-card">
+        <div className="branch-card sidebar-label">
           <small>Sede activa</small>
           <b>{branchName}</b>
           {isAdmin && branches.length > 1 ? (
@@ -925,16 +939,16 @@ function MainApp({ profile }) {
 
         <nav>
           {menu.map((m) => (
-            <button key={m.key} className={view === m.key ? 'active' : ''} onClick={() => setView(m.key)}><m.icon size={16} />{m.label}</button>
+            <button key={m.key} className={view === m.key ? 'active' : ''} onClick={() => setView(m.key)} title={sidebarCollapsed ? m.label : undefined}><m.icon size={16} /><span className="sidebar-label">{m.label}</span></button>
           ))}
         </nav>
 
         <div className="sidebar-bottom">
           <div className="profile">
             <div className="avatar">{(profile.full_name || '?').slice(0, 1).toUpperCase()}</div>
-            <div><b>{profile.full_name || 'Usuario'}</b><span>{ROLE_LABEL[profile.role] || profile.role}</span></div>
+            <div className="sidebar-label"><b>{profile.full_name || 'Usuario'}</b><span>{ROLE_LABEL[profile.role] || profile.role}</span></div>
           </div>
-          <button onClick={handleLogout} style={{ marginTop: 10 }}><LogOut size={15} />Cerrar sesión</button>
+          <button onClick={handleLogout} style={{ marginTop: 10 }} title={sidebarCollapsed ? 'Cerrar sesión' : undefined}><LogOut size={15} /><span className="sidebar-label">Cerrar sesión</span></button>
         </div>
       </aside>
 
