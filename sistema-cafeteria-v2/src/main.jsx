@@ -788,12 +788,10 @@ function CategoriasView({ profile, activeBranchId }) {
   }
 
   async function eliminar(cat) {
-    if (!window.confirm(`¿Eliminar la categoría "${cat.name}"? Esto no se puede deshacer.`)) return;
+    if (!window.confirm(`¿Eliminar la categoría "${cat.name}"? Esto no se puede deshacer. Si tiene productos, esos productos también se van a eliminar (junto con el detalle de sus ventas viejas; el total de cada venta se mantiene).`)) return;
     const { error: err } = await supabase.from('categories').delete().eq('id', cat.id);
     if (err) {
-      const msg = err.code === '23503'
-        ? `No se pudo eliminar "${cat.name}" porque todavía tiene productos dentro. Mueve o elimina esos productos primero, o usa "Desactivar" en su lugar (clic en el chip de estado).`
-        : `No se pudo eliminar: ${err.message}`;
+      const msg = `No se pudo eliminar: ${err.message}`;
       setError(msg);
       window.alert(msg);
       return;
