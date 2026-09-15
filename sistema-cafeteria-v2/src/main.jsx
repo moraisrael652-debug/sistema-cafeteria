@@ -466,14 +466,33 @@ function AbonadosView({ activeBranchId }) {
   const [abonados, setAbonados] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [deleting, setDeleting] = useState(null);
 
-  useEffect(() => {
-    let active = true;
-    supabase.from('abonados').select('*').eq('branch_id', activeBranchId).eq('active', true).order('student_name').then(({ data }) => {
-      if (active) { setAbonados(data || []); setLoading(false); }
-    });
-    return () => { active = false; };
-  }, [activeBranchId]);
+  async function cargar() {
+    setLoading(true);
+    const { data, error: err } = await supabase.from('abonados').select('*').eq('branch_id', activeBranchId).eq('active', true).order('student_name');
+    if (err) { setError(err.message); } else { setAbonados(data || []); setError(''); }
+    setLoading(false);
+  }
+
+  useEffect(() => { cargar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [activeBranchId]);
+
+  async function eliminar(a) {
+    if (!window.confirm(`¿Eliminar a "${a.student_name}"? Esto no se puede deshacer.`)) return;
+    setDeleting(a.id);
+    const { error: err } = await supabase.from('abonados').delete().eq('id', a.id);
+    setDeleting(null);
+    if (err) {
+      const msg = err.code === '23503'
+        ? `No se pudo eliminar a "${a.student_name}" porque tiene ventas registradas asociadas a su cuenta.`
+        : `No se pudo eliminar: ${err.message}`;
+      setError(msg);
+      window.alert(msg);
+      return;
+    }
+    setAbonados((prev) => prev.filter((x) => x.id !== a.id));
+  }
 
   const filtered = abonados.filter((a) => a.student_name.toLowerCase().includes(search.toLowerCase()) || a.parent_name.toLowerCase().includes(search.toLowerCase()));
 
@@ -483,14 +502,16 @@ function AbonadosView({ activeBranchId }) {
         <h2>Abonados ({abonados.length})</h2>
         <div className="field list-search"><Search size={15} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar alumno o apoderado..." /></div>
       </div>
+      {error && <div className="cart-error">{error}</div>}
       {loading ? <div className="pedidos-loading">Cargando...</div> : (
         <div className="list-table">
-          <div className="list-row head"><span>Alumno</span><span>Apoderado</span><span>Saldo</span></div>
+          <div className="list-row head abonado-row"><span>Alumno</span><span>Apoderado</span><span>Saldo</span><span></span></div>
           {filtered.map((a) => (
-            <div key={a.id} className="list-row">
+            <div key={a.id} className="list-row abonado-row">
               <div><div className="list-name">{a.student_name}</div>{a.aula && <div className="list-sub">{a.aula}</div>}</div>
               <div className="list-name">{a.parent_name}</div>
               <span className={`balance-chip ${a.balance > 0 ? 'positive' : a.balance < 0 ? 'negative' : 'zero'}`}>{formatMoney(a.balance)}</span>
+              <button className="icon-btn danger" title="Eliminar" onClick={() => eliminar(a)} disabled={deleting === a.id}><Trash2 size={14} /></button>
             </div>
           ))}
         </div>
