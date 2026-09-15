@@ -241,6 +241,7 @@ button{border:0;color:inherit;cursor:pointer}
 .balance-chip.positive{background:#1e3b2c;color:var(--leaf)}
 .balance-chip.negative{background:#3a1f1a;color:#ff9d8a}
 .balance-chip.zero{background:var(--panel-2);color:var(--muted)}
+.abonado-row{grid-template-columns:1fr 1fr 90px auto}
 .section-subtitle{font:600 15px var(--display);color:var(--text);margin:28px 0 12px}
 .empresa-card{border:1px solid var(--line);background:var(--panel);border-radius:6px 16px 6px 6px;padding:20px;margin-bottom:8px}
 .empresa-card h3{margin:0 0 16px;font:600 14px var(--display);color:var(--mustard-soft)}
@@ -277,5 +278,5 @@ button{border:0;color:inherit;cursor:pointer}
 .icon-btn.danger:hover{color:#ff9d8a;border-color:#6b3a2c}
 .cat-modal{text-align:left}
 .cat-modal h2{text-align:center}
-@media(max-width:760px){.cat-row{grid-template-columns:1fr 50px 80px auto}.prod-row{grid-template-columns:1fr 70px auto;grid-template-rows:auto auto}.prod-row>.list-sub:nth-child(2){grid-column:1/-1}.form-grid-2{grid-template-columns:1fr}.sol-row,.empresa-branch-row{grid-template-columns:1fr auto;grid-template-rows:auto auto auto}.menu-semana-grid{grid-template-columns:1fr}}
+@media(max-width:760px){.cat-row{grid-template-columns:1fr 50px 80px auto}.prod-row{grid-template-columns:1fr 70px auto;grid-template-rows:auto auto}.prod-row>.list-sub:nth-child(2){grid-column:1/-1}.form-grid-2{grid-template-columns:1fr}.sol-row,.empresa-branch-row,.abonado-row{grid-template-columns:1fr auto;grid-template-rows:auto auto auto}.menu-semana-grid{grid-template-columns:1fr}}
 @media(max-width:760px){.list-view{padding:18px 14px 40px}.list-row{grid-template-columns:1fr auto;grid-template-rows:auto auto}.list-row .list-sub-col{grid-column:1/-1}}
