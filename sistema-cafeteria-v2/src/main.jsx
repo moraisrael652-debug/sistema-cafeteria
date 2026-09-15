@@ -33,8 +33,8 @@ function LoginScreen() {
   return (
     <div className="login-shell">
       <form className="login-card" onSubmit={handleSubmit}>
-        <div className="brand-mark">CA</div>
-        <h1>Cafetería</h1>
+        <div className="brand-mark logo-img"><img src="/logo.jpeg" alt="Cafetería Mora" /></div>
+        <h1>Cafetería Mora</h1>
         <p>Ingresa con tu cuenta de caja</p>
         {error && <div className="login-error">{error}</div>}
         <div className="login-field">
@@ -1393,8 +1393,8 @@ function MainApp({ profile }) {
     <div className="app-shell">
       <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
         <div className="brand">
-          <div className="brand-mark">CA</div>
-          <div className="sidebar-label"><strong>Cafetería</strong><span>Sistema de Caja</span></div>
+          <div className="brand-mark logo-img"><img src="/logo.jpeg" alt="Cafetería Mora" /></div>
+          <div className="sidebar-label"><strong>Cafetería Mora</strong><span>Sistema de Caja</span></div>
           <button className="collapse-toggle" onClick={toggleSidebar} title={sidebarCollapsed ? 'Abrir menú' : 'Colapsar menú'}>
             {sidebarCollapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
           </button>
