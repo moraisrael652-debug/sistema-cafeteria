@@ -2,10 +2,11 @@
 
 :root{
   font-family:'Work Sans',sans-serif;
-  color:#F5EFE4;background:#16261F;font-synthesis:none;
-  --bg:#16261F;--panel:#1F3329;--panel-2:#2A4235;--line:#33503F;
-  --text:#F5EFE4;--muted:#93AC9E;
-  --mustard:#E8A33D;--mustard-soft:#F0BE6E;--berry:#D6543C;--leaf:#6FBE8B;
+  color:#F8F0F5;background:#1D0F22;font-synthesis:none;
+  --bg:#1D0F22;--panel:#2C1832;--panel-2:#3A2140;--line:#54305F;
+  --text:#F8F0F5;--muted:#BB9EC2;
+  --mustard:#E23A8E;--mustard-soft:#F17FBE;--berry:#FF5C5C;--leaf:#4ADE80;
+  --gold:#E8A33D;--gold-soft:#F0BE6E;
   --display:'Fraunces',serif;
 }
 *{box-sizing:border-box}
@@ -29,7 +30,7 @@ button{border:0;color:inherit;cursor:pointer}
 }
 .sidebar nav{display:grid;gap:3px;overflow-y:auto;padding-right:2px}
 .brand{display:flex;align-items:center;gap:11px;padding:0 8px 22px}
-.brand-mark{width:38px;height:38px;border-radius:10px;background:var(--mustard);display:grid;place-items:center;color:#241505;font-family:var(--display);font-size:13px;font-weight:700;overflow:hidden}
+.brand-mark{width:38px;height:38px;border-radius:10px;background:var(--mustard);display:grid;place-items:center;color:#fff;font-family:var(--display);font-size:13px;font-weight:700;overflow:hidden}
 .brand-mark.logo-img{background:#F6F0E4;border-radius:50%}
 .brand-mark.logo-img img{width:100%;height:100%;object-fit:cover;transform:scale(1.35)}
 .brand strong{display:block;font-family:var(--display);font-size:9px;letter-spacing:1.5px;color:var(--muted);font-weight:600}
@@ -72,7 +73,7 @@ button{border:0;color:inherit;cursor:pointer}
 .ticket-banner p{font-size:12px;font-weight:500;margin:6px 0 3px;color:var(--text)}
 .ticket-banner span:not(.signal-icon){font-size:10px;color:var(--muted)}
 .outline-button,.add-button{border-radius:20px;padding:10px 16px;font-size:12px;font-weight:600}
-.outline-button{background:var(--mustard);color:#241505}
+.outline-button{background:var(--mustard);color:#fff}
 .scan-row{display:flex;gap:10px;margin:18px 0}
 
 /* ---- Ticketera / hardware ---- */
@@ -86,7 +87,7 @@ button{border:0;color:inherit;cursor:pointer}
 .printer-card-body{margin-top:8px}
 .printer-card-body p{margin:0 0 9px;font-size:11px;color:var(--muted);line-height:1.4}
 .printer-card-actions{display:flex;align-items:center;gap:12px}
-.printer-card-actions button{background:var(--mustard);color:#241505;font-size:11px;font-weight:700;border-radius:16px;padding:7px 15px}
+.printer-card-actions button{background:var(--mustard);color:#fff;font-size:11px;font-weight:700;border-radius:16px;padding:7px 15px}
 .printer-card-actions button:disabled{opacity:.6;cursor:wait}
 .printer-mode{font-size:10px;color:var(--muted)}
 .barcode-status{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--leaf);background:#1e3b2c;border:1px solid #2b5340;border-radius:20px;padding:8px 15px;white-space:nowrap}
@@ -98,7 +99,7 @@ button{border:0;color:inherit;cursor:pointer}
 .field input::placeholder{color:#5f7568}
 .barcode{height:46px;border-radius:20px}
 .barcode svg{color:var(--muted)}
-.add-button{background:var(--mustard);color:#241505;display:flex;align-items:center;gap:6px}
+.add-button{background:var(--mustard);color:#fff;display:flex;align-items:center;gap:6px}
 .filters{display:grid;grid-template-columns:1fr 1fr 1fr 1.2fr;gap:11px;margin-bottom:24px}
 .filters label{font-size:11px;color:var(--muted);font-weight:500}
 .select-like{margin-top:8px;font-size:13px;color:var(--text);justify-content:space-between;font-weight:400}
@@ -125,7 +126,7 @@ button{border:0;color:inherit;cursor:pointer}
 .product-info span{display:block;color:var(--muted);font-size:10px;margin-top:5px}
 .product-info small{display:block;color:var(--muted);font-size:9px;margin-top:3px}
 .card-add{width:100%;height:32px;border-radius:20px;background:var(--panel-2);border:1px solid var(--line);color:var(--mustard-soft);font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px}
-.card-add:hover{background:var(--mustard);color:#241505;border-color:var(--mustard)}
+.card-add:hover{background:var(--mustard);color:#fff;border-color:var(--mustard)}
 .mint,.lime,.coffee,.chocolate,.latte,.orange,.green,.sand,.yellow,.sky{background:var(--panel-2)}
 .cart-panel{border-left:1px solid var(--line);height:100%;padding:28px 20px 20px;background:#132019;display:flex;flex-direction:column;overflow:hidden}
 .cart-header{display:flex;justify-content:space-between;align-items:flex-start}
@@ -151,7 +152,7 @@ button{border:0;color:inherit;cursor:pointer}
 .summary-line b{color:var(--text)}
 .total-line{color:var(--text);font-weight:500;font-size:14px;margin:15px 0}
 .total-line b{font-size:20px;color:var(--mustard-soft);font-family:var(--display)}
-.pay-button{width:100%;height:48px;background:var(--mustard);border-radius:24px;color:#241505;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;gap:10px}
+.pay-button{width:100%;height:48px;background:var(--mustard);border-radius:24px;color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;gap:10px}
 .pay-button span{font-size:12px;opacity:.85}
 .pay-button:disabled{opacity:.4;cursor:not-allowed}
 .modal-backdrop{position:fixed;inset:0;background:#0c130fcc;backdrop-filter:blur(4px);display:grid;place-items:center;padding:20px;z-index:5}
@@ -219,7 +220,7 @@ button{border:0;color:inherit;cursor:pointer}
 .login-field label{display:block;font-size:11px;font-weight:500;color:var(--muted);margin-bottom:7px}
 .login-field .field{height:46px}
 .login-error{background:#3a1f1a;border:1px solid #6b3a2c;color:#ff9d8a;font-size:12px;border-radius:8px;padding:10px 12px;margin-bottom:14px}
-.login-submit{width:100%;height:47px;margin-top:10px;background:var(--mustard);border-radius:24px;color:#241505;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;gap:8px}
+.login-submit{width:100%;height:47px;margin-top:10px;background:var(--mustard);border-radius:24px;color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;gap:8px}
 .login-submit:disabled{opacity:.5;cursor:not-allowed}
 .app-loading{min-height:100vh;display:grid;place-items:center;color:var(--muted);font-size:13px;background:var(--bg)}
 .branch-picker{margin-bottom:14px}
