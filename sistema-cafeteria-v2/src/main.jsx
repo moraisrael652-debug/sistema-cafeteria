@@ -468,6 +468,7 @@ function AbonadosView({ activeBranchId }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState(null);
+  const [deletedOk, setDeletedOk] = useState('');
 
   async function cargar() {
     setLoading(true);
@@ -481,6 +482,7 @@ function AbonadosView({ activeBranchId }) {
   async function eliminar(a) {
     if (!window.confirm(`¿Eliminar a "${a.student_name}"? Esto no se puede deshacer.`)) return;
     setDeleting(a.id);
+    setDeletedOk('');
     const { error: err } = await supabase.from('abonados').delete().eq('id', a.id);
     setDeleting(null);
     if (err) {
@@ -492,6 +494,8 @@ function AbonadosView({ activeBranchId }) {
       return;
     }
     setAbonados((prev) => prev.filter((x) => x.id !== a.id));
+    setDeletedOk(`"${a.student_name}" fue eliminado.`);
+    setTimeout(() => setDeletedOk(''), 3000);
   }
 
   const filtered = abonados.filter((a) => a.student_name.toLowerCase().includes(search.toLowerCase()) || a.parent_name.toLowerCase().includes(search.toLowerCase()));
@@ -503,6 +507,7 @@ function AbonadosView({ activeBranchId }) {
         <div className="field list-search"><Search size={15} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar alumno o apoderado..." /></div>
       </div>
       {error && <div className="cart-error">{error}</div>}
+      {deletedOk && <div className="barcode-status" style={{ marginBottom: 14 }}><CheckCircle2 size={14} />{deletedOk}</div>}
       {loading ? <div className="pedidos-loading">Cargando...</div> : (
         <div className="list-table">
           <div className="list-row head abonado-row"><span>Alumno</span><span>Apoderado</span><span>Saldo</span><span></span></div>
@@ -1412,6 +1417,7 @@ function MainApp({ profile }) {
 
   return (
     <div className="app-shell">
+      <button className={`reopen-sidebar ${sidebarCollapsed ? 'visible' : ''}`} onClick={toggleSidebar} title="Abrir menú"><ChevronRight size={16} /></button>
       <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
         <div className="brand">
           <div className="brand-mark logo-img"><img src="/logo.jpeg" alt="Cafetería Mora" /></div>
