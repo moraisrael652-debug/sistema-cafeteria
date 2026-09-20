@@ -597,18 +597,71 @@ function AbonadosView({ profile, activeBranchId }) {
 // Créditos
 // ==================================================================
 
-function CreditosView({ activeBranchId }) {
+function CreditosView({ profile, activeBranchId }) {
   const [clientes, setClientes] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [deleting, setDeleting] = useState(null);
+  const [deletedOk, setDeletedOk] = useState('');
+  const [modal, setModal] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ nombre: '', telefono: '', limite: '', tipo: '', email: '' });
 
-  useEffect(() => {
-    let active = true;
-    supabase.from('credito_clientes').select('*').eq('branch_id', activeBranchId).eq('active', true).order('nombre').then(({ data }) => {
-      if (active) { setClientes(data || []); setLoading(false); }
+  async function cargar() {
+    setLoading(true);
+    const { data, error: err } = await supabase.from('credito_clientes').select('*').eq('branch_id', activeBranchId).eq('active', true).order('nombre');
+    if (err) { setError(err.message); } else { setClientes(data || []); setError(''); }
+    setLoading(false);
+  }
+
+  useEffect(() => { cargar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [activeBranchId]);
+
+  function abrirNuevo() {
+    setForm({ nombre: '', telefono: '', limite: '', tipo: '', email: '' });
+    setError('');
+    setModal('new');
+  }
+
+  async function guardar() {
+    if (!form.nombre.trim()) { setError('Ponle un nombre al cliente.'); return; }
+    setSaving(true);
+    setError('');
+    const { error: err } = await supabase.from('credito_clientes').insert({
+      nombre: form.nombre.trim(),
+      telefono: form.telefono.trim() || null,
+      limite: form.limite.trim() ? Number(form.limite) : null,
+      tipo: form.tipo.trim() || null,
+      email: form.email.trim() || null,
+      deuda: 0,
+      organization_id: profile.organization_id,
+      branch_id: activeBranchId,
+      active: true,
     });
-    return () => { active = false; };
-  }, [activeBranchId]);
+    setSaving(false);
+    if (err) { setError(err.message); return; }
+    setModal(null);
+    cargar();
+  }
+
+  async function eliminar(c) {
+    if (!window.confirm(`¿Eliminar a "${c.nombre}"? Esto no se puede deshacer.`)) return;
+    setDeleting(c.id);
+    setDeletedOk('');
+    const { error: err } = await supabase.from('credito_clientes').delete().eq('id', c.id);
+    setDeleting(null);
+    if (err) {
+      const msg = err.code === '23503'
+        ? `No se pudo eliminar a "${c.nombre}" porque tiene movimientos o ventas asociadas a su cuenta.`
+        : `No se pudo eliminar: ${err.message}`;
+      setError(msg);
+      window.alert(msg);
+      return;
+    }
+    setClientes((prev) => prev.filter((x) => x.id !== c.id));
+    setDeletedOk(`"${c.nombre}" fue eliminado.`);
+    setTimeout(() => setDeletedOk(''), 3000);
+  }
 
   const filtered = clientes.filter((c) => c.nombre.toLowerCase().includes(search.toLowerCase()));
 
@@ -617,17 +670,54 @@ function CreditosView({ activeBranchId }) {
       <div className="list-header">
         <h2>Créditos ({clientes.length})</h2>
         <div className="field list-search"><Search size={15} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar cliente..." /></div>
+        <button className="add-button" onClick={abrirNuevo}><Plus size={15} />Nuevo cliente</button>
       </div>
+      {error && <div className="cart-error">{error}</div>}
+      {deletedOk && <div className="barcode-status" style={{ marginBottom: 14 }}><CheckCircle2 size={14} />{deletedOk}</div>}
       {loading ? <div className="pedidos-loading">Cargando...</div> : (
         <div className="list-table">
-          <div className="list-row head"><span>Cliente</span><span>Límite</span><span>Deuda</span></div>
+          <div className="list-row head prod-row"><span>Cliente</span><span>Límite</span><span>Deuda</span><span></span></div>
           {filtered.map((c) => (
-            <div key={c.id} className="list-row">
+            <div key={c.id} className="list-row prod-row">
               <div><div className="list-name">{c.nombre}</div>{c.telefono && <div className="list-sub">{c.telefono}</div>}</div>
               <div className="list-name">{c.limite != null ? formatMoney(c.limite) : '—'}</div>
               <span className={`balance-chip ${c.deuda > 0 ? 'negative' : 'zero'}`}>{formatMoney(c.deuda)}</span>
+              <button className="icon-btn danger" title="Eliminar" onClick={() => eliminar(c)} disabled={deleting === c.id}><Trash2 size={14} /></button>
             </div>
           ))}
+        </div>
+      )}
+
+      {modal && (
+        <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && !saving && setModal(null)}>
+          <div className="payment-modal cat-modal">
+            <button className="modal-close" onClick={() => setModal(null)}><X size={16} /></button>
+            <h2>Nuevo cliente de crédito</h2>
+            <div className="login-field" style={{ textAlign: 'left', marginTop: 18 }}>
+              <label>NOMBRE</label>
+              <div className="field"><input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Ej: Profesora Ana" autoFocus /></div>
+            </div>
+            <div className="form-grid-2">
+              <div className="login-field" style={{ textAlign: 'left' }}>
+                <label>TELÉFONO (opcional)</label>
+                <div className="field"><input value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} placeholder="987654321" /></div>
+              </div>
+              <div className="login-field" style={{ textAlign: 'left' }}>
+                <label>LÍMITE DE CRÉDITO (S/, opcional)</label>
+                <div className="field"><input type="number" step="0.01" value={form.limite} onChange={(e) => setForm({ ...form, limite: e.target.value })} placeholder="Sin límite" /></div>
+              </div>
+            </div>
+            <div className="login-field" style={{ textAlign: 'left' }}>
+              <label>TIPO (opcional)</label>
+              <div className="field"><input value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })} placeholder="Ej: docente" /></div>
+            </div>
+            <div className="login-field" style={{ textAlign: 'left' }}>
+              <label>EMAIL (opcional)</label>
+              <div className="field"><input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="correo@ejemplo.com" /></div>
+            </div>
+            {error && <div className="cart-error">{error}</div>}
+            <button className="login-submit" onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
+          </div>
         </div>
       )}
     </div>
@@ -1530,7 +1620,7 @@ function MainApp({ profile }) {
         {view === 'caja' && <CajaView profile={profile} activeBranchId={activeBranchId} branchName={branchName} />}
         {view === 'pedidos' && <PedidosView profile={profile} activeBranchId={activeBranchId} onBack={() => setView('caja')} />}
         {view === 'abonados' && <AbonadosView profile={profile} activeBranchId={activeBranchId} />}
-        {view === 'creditos' && <CreditosView activeBranchId={activeBranchId} />}
+        {view === 'creditos' && <CreditosView profile={profile} activeBranchId={activeBranchId} />}
         {view === 'categorias' && <CategoriasView profile={profile} activeBranchId={activeBranchId} />}
         {view === 'productos' && <ProductosView profile={profile} activeBranchId={activeBranchId} />}
         {view === 'empresa' && <EmpresaView profile={profile} isAdmin={isAdmin} />}
