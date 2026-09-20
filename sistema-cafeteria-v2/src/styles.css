@@ -2,10 +2,10 @@
 
 :root{
   font-family:'Work Sans',sans-serif;
-  color:#F8F0F5;background:#1D0F22;font-synthesis:none;
-  --bg:#1D0F22;--panel:#2C1832;--panel-2:#3A2140;--line:#54305F;
-  --text:#F8F0F5;--muted:#BB9EC2;
-  --mustard:#E23A8E;--mustard-soft:#F17FBE;--berry:#FF5C5C;--leaf:#4ADE80;
+  color:#F8EFE6;background:#241610;font-synthesis:none;
+  --bg:#241610;--panel:#33221A;--panel-2:#452D22;--line:#5C3D2E;
+  --text:#F8EFE6;--muted:#C4A392;
+  --mustard:#E85D2C;--mustard-soft:#F2905F;--berry:#FF5C5C;--leaf:#4ADE80;
   --gold:#E8A33D;--gold-soft:#F0BE6E;
   --display:'Fraunces',serif;
 }
