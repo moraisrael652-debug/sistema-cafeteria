@@ -462,13 +462,16 @@ function PedidosView({ profile, activeBranchId, onBack }) {
 // Abonados
 // ==================================================================
 
-function AbonadosView({ activeBranchId }) {
+function AbonadosView({ profile, activeBranchId }) {
   const [abonados, setAbonados] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState(null);
   const [deletedOk, setDeletedOk] = useState('');
+  const [modal, setModal] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ student_name: '', parent_name: '', aula: '', grado: '', balance: '0', email: '' });
 
   async function cargar() {
     setLoading(true);
@@ -478,6 +481,33 @@ function AbonadosView({ activeBranchId }) {
   }
 
   useEffect(() => { cargar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [activeBranchId]);
+
+  function abrirNuevo() {
+    setForm({ student_name: '', parent_name: '', aula: '', grado: '', balance: '0', email: '' });
+    setError('');
+    setModal('new');
+  }
+
+  async function guardar() {
+    if (!form.student_name.trim() || !form.parent_name.trim()) { setError('Completa el nombre del alumno y del apoderado.'); return; }
+    setSaving(true);
+    setError('');
+    const { error: err } = await supabase.from('abonados').insert({
+      student_name: form.student_name.trim(),
+      parent_name: form.parent_name.trim(),
+      aula: form.aula.trim() || null,
+      grado: form.grado.trim() || null,
+      balance: Number(form.balance) || 0,
+      email: form.email.trim() || null,
+      organization_id: profile.organization_id,
+      branch_id: activeBranchId,
+      active: true,
+    });
+    setSaving(false);
+    if (err) { setError(err.message); return; }
+    setModal(null);
+    cargar();
+  }
 
   async function eliminar(a) {
     if (!window.confirm(`¿Eliminar a "${a.student_name}"? Esto no se puede deshacer.`)) return;
@@ -505,6 +535,7 @@ function AbonadosView({ activeBranchId }) {
       <div className="list-header">
         <h2>Abonados ({abonados.length})</h2>
         <div className="field list-search"><Search size={15} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar alumno o apoderado..." /></div>
+        <button className="add-button" onClick={abrirNuevo}><Plus size={15} />Nuevo abonado</button>
       </div>
       {error && <div className="cart-error">{error}</div>}
       {deletedOk && <div className="barcode-status" style={{ marginBottom: 14 }}><CheckCircle2 size={14} />{deletedOk}</div>}
@@ -519,6 +550,43 @@ function AbonadosView({ activeBranchId }) {
               <button className="icon-btn danger" title="Eliminar" onClick={() => eliminar(a)} disabled={deleting === a.id}><Trash2 size={14} /></button>
             </div>
           ))}
+        </div>
+      )}
+
+      {modal && (
+        <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && !saving && setModal(null)}>
+          <div className="payment-modal cat-modal">
+            <button className="modal-close" onClick={() => setModal(null)}><X size={16} /></button>
+            <h2>Nuevo abonado</h2>
+            <div className="login-field" style={{ textAlign: 'left', marginTop: 18 }}>
+              <label>NOMBRE DEL ALUMNO</label>
+              <div className="field"><input value={form.student_name} onChange={(e) => setForm({ ...form, student_name: e.target.value })} placeholder="Ej: Juan Pérez" autoFocus /></div>
+            </div>
+            <div className="login-field" style={{ textAlign: 'left' }}>
+              <label>NOMBRE DEL APODERADO</label>
+              <div className="field"><input value={form.parent_name} onChange={(e) => setForm({ ...form, parent_name: e.target.value })} placeholder="Ej: María Pérez" /></div>
+            </div>
+            <div className="form-grid-2">
+              <div className="login-field" style={{ textAlign: 'left' }}>
+                <label>AULA (opcional)</label>
+                <div className="field"><input value={form.aula} onChange={(e) => setForm({ ...form, aula: e.target.value })} placeholder="Ej: 5to B" /></div>
+              </div>
+              <div className="login-field" style={{ textAlign: 'left' }}>
+                <label>GRADO (opcional)</label>
+                <div className="field"><input value={form.grado} onChange={(e) => setForm({ ...form, grado: e.target.value })} placeholder="Ej: Primaria" /></div>
+              </div>
+            </div>
+            <div className="login-field" style={{ textAlign: 'left' }}>
+              <label>SALDO INICIAL (S/)</label>
+              <div className="field"><input type="number" step="0.01" value={form.balance} onChange={(e) => setForm({ ...form, balance: e.target.value })} placeholder="0.00" /></div>
+            </div>
+            <div className="login-field" style={{ textAlign: 'left' }}>
+              <label>EMAIL (opcional)</label>
+              <div className="field"><input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="correo@ejemplo.com" /></div>
+            </div>
+            {error && <div className="cart-error">{error}</div>}
+            <button className="login-submit" onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
+          </div>
         </div>
       )}
     </div>
@@ -1461,7 +1529,7 @@ function MainApp({ profile }) {
         )}
         {view === 'caja' && <CajaView profile={profile} activeBranchId={activeBranchId} branchName={branchName} />}
         {view === 'pedidos' && <PedidosView profile={profile} activeBranchId={activeBranchId} onBack={() => setView('caja')} />}
-        {view === 'abonados' && <AbonadosView activeBranchId={activeBranchId} />}
+        {view === 'abonados' && <AbonadosView profile={profile} activeBranchId={activeBranchId} />}
         {view === 'creditos' && <CreditosView activeBranchId={activeBranchId} />}
         {view === 'categorias' && <CategoriasView profile={profile} activeBranchId={activeBranchId} />}
         {view === 'productos' && <ProductosView profile={profile} activeBranchId={activeBranchId} />}
